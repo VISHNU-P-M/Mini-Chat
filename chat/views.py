@@ -53,15 +53,15 @@ def chat(request,id):
         if OneToOne.objects.filter(user1=user1,user2=user2).exists():
             onetoone = OneToOne.objects.get(user1=user1,user2=user2)
             room_name = onetoone.room_name
-            print(room_name)
         elif OneToOne.objects.filter(user1=user2,user2=user1).exists():
             onetoone = OneToOne.objects.get(user1=user2,user2=user1)
             room_name = onetoone.room_name
-            print(room_name)
         else:
             room_name = uuid.uuid1()
             OneToOne.objects.create(user1=user1,user2=user2,room_name=room_name)
-        return render(request, 'chatroom.html',{'room_name':room_name,'user':user1,'receiver':user2})
+        messages = Messages.objects.filter(onetoone__room_name=room_name)
+        context = {'room_name':room_name,'user':user1,'receiver':user2,'messages':messages}
+        return render(request, 'chatroom.html',context)
     else:
         return redirect(login)
 

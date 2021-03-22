@@ -22,12 +22,17 @@
         </div>
         {{room_name|json_script:"room-name"}}
         {{request.user.username|json_script:"username"}}
+        {{receiver.id|json_script:"receiver"}}
     <!-- </div> -->
     <script>
-
-
+        {% for message in messages %}
+            document.getElementById('messages').innerHTML += ('{{message.sender}}' + '  :  '+"{{message.message}}" + '\n' )
+        {% endfor %}
+    </script>
+    <script>
         const roomName = JSON.parse(document.getElementById('room-name').textContent);
         const username = JSON.parse(document.getElementById('username').textContent);
+        const receiver = JSON.parse(document.getElementById('receiver').textContent);
         const chatSocket = new WebSocket(
             'ws://' +
             window.location.host +
@@ -43,6 +48,7 @@
             chatSocket.send(JSON.stringify({
                 'message':message,
                 'username':username,
+                'receiver':receiver,
                 
             }));
             messageInputDom.value = '';
