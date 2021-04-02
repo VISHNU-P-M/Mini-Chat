@@ -58,7 +58,7 @@ def chat(request,id):
             room_name = onetoone.room_name
         else:
             room_name = uuid.uuid1()
-            OneToOne.objects.create(user1=user1,user2=user2,room_name=room_name)
+            onetoone = OneToOne.objects.create(user1=user1,user2=user2,room_name=room_name) 
         messages = Messages.objects.filter(onetoone__room_name=room_name)
         context = {'room_name':room_name,'user':user1,'receiver':user2,'messages':messages}
         return render(request, 'chatroom.html',context)

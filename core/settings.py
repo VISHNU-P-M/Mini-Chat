@@ -124,6 +124,18 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR,'static')
+]
+STATIC_ROOT = os.path.join(BASE_DIR,'assets')
+
+MEDIA_ROOT = os.path.join(BASE_DIR,'static/media/')
+MEDIA_URL = '/media/'
+
+
+
+
 ASGI_APPLICATION = "core.routing.application"
 CHANNEL_LAYERS = {
     "default": {
