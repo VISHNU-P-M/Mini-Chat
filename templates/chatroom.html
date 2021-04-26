@@ -13,15 +13,20 @@
     <!-- <div class="container"> -->
         <div class="row">
             <!-- <div class="col md-1"></div> -->
-            <div  style="background-color: #2289bd;height: 585px;margin-top: 3rem; width: 15rem; margin-left: auto; margin-right: auto;border-radius: 5%;">
+            <div  style="background-color: #2289bd;height: 605px;margin-top: 3rem; width: 15rem; margin-left: auto; margin-right: auto;border-radius: 5%;">
                 <label for="" style="display: flex; place-content: center; color: white; font-size: 30px; text-transform: capitalize; font-family: cursive;font-weight: 600;">{{receiver.username}}</label>
                 <div>
                     <div id="messages" style="background-color: #b3ccd8;overflow: auto  ;height: 490px;"><span id="imageadd"></span></div>
+                    <div class="progress">
+                        <div class="progress-bar" role="progressbar" style="width: 0%;    background-color: black;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" id="progress"></div>
+                        </div>
                     <!-- <textarea name="" id="messages" cols="30" rows="10" readonly style="margin-top: 5px; height: 270px; width: 100%;resize: none;"></textarea> -->
                     <input type="text" id="input" placeholder="Type message" style=" width: 71%;">
                     <button type="button" id="filebtn"><i class="fa fa-paperclip" aria-hidden="true"></i></button><input type="file" name="file" id="file" onchange="sendFile()" hidden> 
                     <button type="button" id="btn"><i class="fa fa-telegram" aria-hidden="true" style="color: #2289bd;"></i></button>
+                    <button type="button" id="recording" class="btn btn-primary">Press</button>
                 </div>
+                
             </div>
             <!-- <div class="col md-1"></div> -->
         </div>
@@ -47,6 +52,7 @@
         const roomName = JSON.parse(document.getElementById('room-name').textContent);
         const username = JSON.parse(document.getElementById('username').textContent);
         const receiver = JSON.parse(document.getElementById('receiver').textContent);
+        console.log(window.location.host)
         const chatSocket = new WebSocket(
             'ws://' +
             window.location.host +
@@ -134,12 +140,19 @@
         });
         
         async function sendFile() {
+            document.getElementById('progress').style.width = '0%'
            const file = document.querySelector('#file').files[0];
-           //console.log(await toBase64(file));
-           //console.log(file.name)
-           var dataURL = await toBase64(file)
-           //console.log(dataURL)
-           if (isImage(file.name)) {
+           console.log(file)
+            var chunkSize = 5120 * 5120;
+            var fileSize = file.size;
+            console.log(fileSize)
+            var chunks = Math.ceil(file.size/chunkSize,chunkSize);
+            var percent = 100/chunks;
+            var onechunk = percent;
+            var chunk = 0;
+            console.log('chunks',chunks)
+            console.log('percent',percent)
+            if (isImage(file.name)) {
                 var type = 'image'
            }else if(isVideo(file.name)){
                var type = 'video'
@@ -149,13 +162,36 @@
                var type = 'text'
            }
            console.log(type)
-           chatSocket.send(JSON.stringify({
-            'message':dataURL,
-            'type':type,
-            'username':username,
-            'receiver':receiver,
-            
-            }));
+            while (chunk < chunks) {
+                var offset = chunk*chunkSize;
+                console.log('current chunk..', chunk);
+                console.log('offset...', chunk*chunkSize);
+                console.log('file blob from offset...', offset)
+                var blob_data = file.slice(offset,offset+chunkSize);
+                console.log(blob_data)
+                document.getElementById('progress').style.width = percent+'%'
+                percent = percent + onechunk;
+                console.log('percent',percent)
+                var loop_end = 'false'
+                if(chunk+1 >= chunks){
+                    loop_end = 'true'
+                }
+                console.log('loop ended',loop_end)
+                chunk++;
+                var dataURL = await toBase64(blob_data)
+                console.log(dataURL)
+                chatSocket.send(JSON.stringify({
+                    'message':dataURL,
+                    'type':type,
+                    'loop_end':loop_end,
+                    'username':username,
+                    'receiver':receiver,
+                    
+                }));
+            }
+           //console.log(await toBase64(file));
+           //console.log(file.name)
+           //console.log(dataURL)
         }
 
         chatSocket.onmessage = function(e){
@@ -167,12 +203,67 @@
             }else if(data.msgtype == 'video'){
                 document.getElementById('messages').innerHTML += (data.username + '  :  <br><video width="320" height="240" autoplay controls loop><source src='+data.message+' type="video/mp4"> <br>')
             }else if(data.msgtype == 'audio'){
-                document.getElementById('messages').innerHTML += (data.username + '  :  <br><audio controls><source src='+data.message+' type="audio/ogg"> <br>')
+                document.getElementById('messages').innerHTML += (data.username + '  :  <br><button onclick = refresh()>Download</button><audio controls autoplay><source src='+data.message+' type="audio/ogg"> <br>')
             }else{
                 document.getElementById('messages').innerHTML += (data.username + '  : data not found \n <br>' )
             }
             
         }
+        function refresh(){
+            window.location.reload()
+        }
+        function startRecording(stream) { 
+            recorder = new MediaRecorder(stream); 
+            let data = []; 
+            recorder.ondataavailable = event => data.push(event.data); 
+            recorder.start(); 
+            let stopped = new Promise((resolve, reject) => { 
+                recorder.onstop = resolve; 
+                recorder.onerror = event => reject(event.name); 
+            }); 
+          
+            return stopped.then(() => data); 
+        }
+        const recording = document.getElementById("recording"); 
+        let stream 
+        ( async () => { 
+            stream = await navigator.mediaDevices.getUserMedia({ 
+                audio: true, 
+                video: false // we don't want video 
+            }) 
+        })(); 
+        recording.addEventListener("pointerdown", async () => {
+            console.log('recording') 
+            recordedChunks = startRecording(stream) 
+        }, false);
+        recording.addEventListener("pointerup",  async () => {
+            console.log('end')
+            // Stop the recording
+            recorder.state == "recording" && recorder.stop()
+        
+            recordedChunks = await recordedChunks
+            recordedBlob = new Blob(recordedChunks, {type: 'audio/mp3; codecs="opus"'});
+        
+            // Create an audio file
+            var audioFile = new File([recordedBlob], "audio.mp3", {
+                type: 'audio/mp3; codecs="opus"',
+            });
+
+            
+            console.log(audioFile)
+            var dataURL = await toBase64(audioFile)
+            chatSocket.send(JSON.stringify({
+                'message':dataURL,
+                'type':'audio',
+                'username':username,
+                'receiver':receiver,
+                
+            }));
+            
+        })
+    </script>
+    <script>
+        
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.6.0/dist/umd/popper.min.js" integrity="sha384-KsvD1yqQ1/1+IA7gi3P0tyJcT3vR+NdBTt13hSJ2lnve8agRGXTTyNaBYmCR/Nwi" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.min.js" integrity="sha384-nsg8ua9HAw1y0W1btsyWgBklPnCUAFLuTMS2G72MMONqmOymq585AcH49TLBQObG" crossorigin="anonymous"></script>

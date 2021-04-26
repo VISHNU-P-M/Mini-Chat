@@ -30,30 +30,51 @@ class ChatRoomConsumer(WebsocketConsumer):
         data = json.loads(text_data)
         message = data['message']
         msgtype = data['type']
+        if msgtype == 'image' or msgtype == 'video' or msgtype == 'audio':
+            print('here')
+            loop_end = data['loop_end']
         username = data['username']
         receiver = data['receiver']
+        full_file = ''
         user1 = User.objects.get(username=username)
         user2 = User.objects.get(id=receiver)
         if msgtype == 'image' or msgtype == 'video' or msgtype == 'audio':
-            format, filestr = message.split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(base64.b64decode(filestr), name=msgtype + '.' + ext)
-            onetoone = OneToOne.objects.get(room_name=self.room_name)
-            Messages.objects.create(sender=user1,receiver=user2,onetoone=onetoone,date=datetime.now(),msg_type=msgtype,upload_file=data)
+            if loop_end == 'true':
+                print('last')
+                full_file += message
+                format, filestr = full_file.split(';base64,')
+                ext = format.split('/')[-1]
+                data = ContentFile(base64.b64decode(filestr), name=msgtype + '.' + ext)
+                print(data) 
+                # onetoone = OneToOne.objects.get(room_name=self.room_name)
+                # Messages.objects.create(sender=user1,receiver=user2,onetoone=onetoone,date=datetime.now(),msg_type=msgtype,upload_file=data)
+                async_to_sync(self.channel_layer.group_send)(
+                    self.room_group_name,
+                    {
+                        'type': 'chat_message',
+                        'msgtype':msgtype,
+                        'message': full_file,
+                        'username':username
+                        
+                    }
+                )
+            else:
+                print('then')
+                full_file += message
         else:
             print(user1,user2,datetime.now()) 
             onetoone = OneToOne.objects.get(room_name=self.room_name)
             Messages.objects.create(sender=user1,receiver=user2,onetoone=onetoone,date=datetime.now(),message=message)
-        async_to_sync(self.channel_layer.group_send)(
-            self.room_group_name,
-            {
-                'type': 'chat_message',
-                'msgtype':msgtype,
-                'message': message,
-                'username':username
-                
-            }
-        )
+            async_to_sync(self.channel_layer.group_send)(
+                self.room_group_name,
+                {
+                    'type': 'chat_message',
+                    'msgtype':msgtype,
+                    'message': message,
+                    'username':username
+                    
+                }
+            )
         
     def chat_message(self, event):
         message = event['message']
